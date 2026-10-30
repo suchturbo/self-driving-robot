@@ -1,124 +1,53 @@
-#include <Servo.h>
-#include <NewPing.h>
+# Self-Driving Maze Robot
 
+An Arduino robot that drives itself through a maze using three ultrasonic sensors and two continuous-rotation servo wheels. It follows the walls, takes the more open path at a junction, and turns around at dead ends.
 
-#define TRIGGER_PIN  A2  // Arduino pin tied to trigger pin on the ultrasonic sensor.
-#define ECHO_PIN     A2  // Arduino pin tied to echo pin on the ultrasonic sensor.
-#define MAX_DISTANCE 250 // Maximum distance we want to ping for (in centimeters). Maximum sensor distance is rated at 400-500cm.
-// NewPing setup of pins and maximum distance.
-#define TRIGGER_PIN13 A0
-#define ECHO_PIN13 A0
-#define TRIGGER_PIN1 A1
-#define ECHO_PIN1 A1
-Servo servoRight;
-Servo servoLeft;
-Servo servoArm;
-NewPing sonar(TRIGGER_PIN, ECHO_PIN, MAX_DISTANCE); 
-NewPing sonar1(TRIGGER_PIN13, ECHO_PIN13, MAX_DISTANCE);
-NewPing sonar2(TRIGGER_PIN1, ECHO_PIN1, MAX_DISTANCE);
+Built in C++ for Arduino.
 
-int servoPinArm = 11;
-int servoPinWheelRight = 12;
-int servoPinWheelLeft = 13;
-void setup() {
-  // put your setup code here, to run once:
-  servoRight.attach(servoPinWheelRight);
-  servoLeft.attach(servoPinWheelLeft);
-  servoArm.attach(servoPinArm);
-  //pinMode(trigPin, OUTPUT); 
-  //pinMode(echogozPin, INPUT);
-  Serial.begin(9600);
-  servoArm.write(180);
-  
-   //goForwards();
-}
+## How it works
 
-void turnLeft(){
-  servoRight.writeMicroseconds(1500);
-  servoLeft.writeMicroseconds(1300);
-}
+Every loop the robot pings its front, left, and right sensors, takes the median of three pings per sensor to reject stray echoes, and decides what to do:
 
-void turnRight(){
-  servoRight.writeMicroseconds(1700);
-  servoLeft.writeMicroseconds(1500);
-}
+| Situation | What the robot does |
+| --- | --- |
+| Path ahead is clear (30 cm or more) | Drives forward, nudging to keep an even gap to the side walls |
+| Wall ahead, left blocked | Turns right |
+| Wall ahead, right blocked | Turns left |
+| Wall ahead, both sides open | Turns toward the side with more room |
+| Wall ahead and on both sides | Backs up and turns around |
 
-void goForwards(){
-  servoRight.writeMicroseconds(1700);  
-  servoLeft.writeMicroseconds(1300); 
-}
+A sensor that hears no echo within range reports 0 from NewPing. The sketch treats that as open space, not as a wall.
 
-void goStop(){
-  servoRight.writeMicroseconds(1500);  
-  servoLeft.writeMicroseconds(1500); 
-}
+## Hardware
 
-void goBackwards(){
-  servoRight.writeMicroseconds(1300);  
-  servoLeft.writeMicroseconds(1700); 
-}
+| Part | Pin |
+| --- | --- |
+| Front ultrasonic sensor (single-pin mode) | A2 |
+| Left ultrasonic sensor | A0 |
+| Right ultrasonic sensor | A1 |
+| Right wheel, continuous-rotation servo | D12 |
+| Left wheel, continuous-rotation servo | D13 |
+| Arm servo (parked at startup) | D11 |
 
+The board is an Arduino Uno or compatible. Each sensor uses one pin for both trigger and echo.
 
-void goLeft(){
-  servoRight.writeMicroseconds(1300);  
-  servoLeft.writeMicroseconds(1300); 
-}
+## Running it
 
-void goRight(){
-  servoRight.writeMicroseconds(1700);  
-  servoLeft.writeMicroseconds(1700); 
-}
+1. Install the **NewPing** library in the Arduino IDE (Sketch → Include Library → Manage Libraries, search "NewPing").
+2. Open `self_driving_robot/self_driving_robot.ino`.
+3. Select your board and port, then upload.
+4. Open the Serial Monitor at 9600 baud to watch the sensor readings and decisions.
 
+## Tuning
 
-void loop() {
-  delay(50);                      // Wait 50ms between pings (about 20 pings/sec). 29ms should be the shortest delay between pings.
-  unsigned int uS = sonar.ping(); // Send ping, get ping time in microseconds (uS).
-  unsigned int iS = sonar1.ping();//leftsonar
-  unsigned int kS = sonar2.ping();//rightsonar
-  
-  
-  Serial.print("Ping: ");
-  Serial.print(iS); // Convert ping time to distance in cm and print result (0 = outside set distance range)
-  Serial.println("cm");
- 
- 
+All the numbers you would want to change are at the top of the sketch:
 
-//if(iS / US_ROUNDTRIP_CM > kS/ US_ROUNDTRIP_CM){
- // turnRight();
-//}
- //else{
- // turnLeft();
-// }
+- `FRONT_STOP_CM`: how close a wall can get before the robot stops to decide.
+- `SIDE_OPEN_CM`: how far a side wall must be to count as an opening.
+- `SIDE_TARGET_CM`: the gap to keep from a wall while driving.
+- `TURN_90_MS` and `TURN_180_MS`: how long a turn lasts. These depend on battery charge and floor surface.
+- `RUN_DIRECTION_TEST`: set to `true` to run each motion once at startup and confirm the wheels move the way the function names say.
 
+## History
 
-
- if (uS / US_ROUNDTRIP_CM < 30){
-    goStop();
-    delay(100);
-    if (iS / US_ROUNDTRIP_CM < 30){
-      turnRight();
-      delay(1400);
-    }
-    else{
-      turnLeft();
-      delay(1400);      
-    }
- }
- else{
-    goForwards();
-    delay(100);
- }
-
- //if( uS / US_ROUNDTRIP_CM == 10){
-   //turnLeft();
-   //goForwards()
-  //}
-  
-  //else if (iS/US_ROUNDTRIP_CM > 0){
-    //();  
-  //}
-  
-  //else {
-    //goRight();
-  //}
-}
+`original_2022/` holds the first version of the sketch, written for a timed maze challenge. The current sketch keeps its motor timings and its rule of turning away from a blocked left side, and adds median filtering, open-space handling, wall centering, and dead-end recovery.
